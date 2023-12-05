@@ -10,9 +10,9 @@ from .parsestats import ParseStats
 from .groupdatadirio import RawDataDirIO
 
                              
-################################################################################
+###############################################################################
 # Parse File I/O (to be used in Parse Data IO)
-################################################################################
+###############################################################################
 class ParseDataFileIO:
     def __repr__(self):
         return f"ParseDataFileIO(db={self.dataio.db})"
@@ -67,7 +67,7 @@ class ParseDataFileIO:
                 status[outputName] = False
             else:
                 raise ValueError(f"Unsure how to handle rDataOutput of type [{type(rDataOutput)}] for OutputName [{outputName}]")
-        
+
         retval = all(status.values())
         return retval
         
@@ -80,7 +80,12 @@ class ParseDataFileIO:
         return status
             
     def updateModValDataMedia(self, key, rDataOutput):
-        status = self.assignModValData(key, {(rDataOutput.mediaID, self.mv.getModVal(rDataOutput.mediaID)): rDataOutput})
+        assert hasattr(rDataOutput, "pdbid"), "rData does not have a pdbid attr"
+        assert hasattr(rDataOutput, "dbid"), "rData does not have a dbid attr"
+        pdbid = rDataOutput.pdbid
+        assert isinstance(pdbid, str), f"pdbid [{pdbid}] is not formatted correctly"
+        modVal = self.mv.getModVal(rDataOutput.dbid)
+        status = self.assignModValData(key, {(pdbid, modVal): rDataOutput})
         return status
                         
     def assignModValData(self, key, modValDataToAssign):
@@ -106,6 +111,8 @@ class ParseDataFileIO:
         elif all([self.rdbiobase.isRawArtistData(obj) for obj in [existingData, updateData]]):
             existingData.merge(updateData)
         elif all([self.rdbiobase.isRawMediaCollectionData(obj) for obj in [existingData, updateData]]):
+            existingData.merge(updateData)
+        elif all([self.rdbiobase.isRawProfileData(obj) for obj in [existingData, updateData]]):
             existingData.merge(updateData)
         elif all([self.rdbiobase.isRawMediaDeepData(obj) | self.rdbiobase.isRawMediaRootData(obj) for obj in [existingData, updateData]]):
             mutils = getattr(self.rawio, "mutils") if hasattr(self.rawio, "mutils") else None
@@ -169,7 +176,10 @@ class ParseDataFileIO:
                 profile = modValData.apply(lambda rData: getattr(rData, "profile").get() if hasattr(rData, "profile") else None)
                 profile = DataFrame(profile.to_dict()).T
                 media = modValData.apply(lambda rData: {"Media": rData.media.get()} if hasattr(rData, "media") else None)
-                media = DataFrame(media.to_dict()).T
+                if media.count() > 0:
+                    media = DataFrame(media.to_dict()).T
+                else:
+                    media = DataFrame(Series(None, index=modValData.index, name="Media"))
 
                 assert basic.count().min() > 0, "Output DataFrame does not have any Basic data filled..."
                 retval = basic
@@ -199,10 +209,9 @@ class ParseDataFileIO:
                 
                 outputData = self.modValData[outputName][modVal]
                 if self.verbose:
-                    print(f"   ===> Saving ModVal={modVal} Data.  [pstats.showBasic()]  ...  ", end="")
+                    print(f"   ===> Saving ModVal={modVal} Data.  [{pstats.showBasic()}]  ...  ", end="")
                 saveData = self.formatOutput(outputData, outputFormat)
                 self.rdio.saveData("ModVal", modVal, data=saveData)
-                #self.dataio.saveModValData(modVal, saveData)
                 if self.verbose:
                     print("✓")
             elif outputLevel == 1:
@@ -214,7 +223,6 @@ class ParseDataFileIO:
                 if self.verbose:
                     print(f"   ===> Saving {outputName} ModVal={modVal} Data.  [{pstats.showBasic()}]  ...  ", end="")
                 self.rdio.saveData(f"ModVal{outputName}", modVal, data=saveData)
-                #self.dataio.saveFileTypeModValData(modVal, outputName, saveData)
                 if self.verbose:
                     print("✓")
             elif outputLevel == 2:
@@ -227,7 +235,6 @@ class ParseDataFileIO:
                 for shuffleModVal, shuffleData in outputData.items():
                     saveData = self.formatOutput(shuffleData, outputFormat)
                     self.rdio.saveData(f"{outputName}", shuffleModVal, modVal, data=saveData)
-                    #self.dataio.saveShuffleData(shuffleModVal, modVal, outputName, saveData)
                 if self.verbose:
                     print("✓")
             else:

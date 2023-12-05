@@ -14,8 +14,9 @@ class MergeFileType:
         assert isinstance(inputName, (list, str)) or inputName is None, "InputName must be a string,list or None"
         self.inputName = inputName
         
-        assert isinstance(inputType, str), "InputType must be a string or None"
-        assert inputType in ["Artist", "ArtistConcat", "Media", "Profile", "Shuffle", "ShuffleArtist"], "InputType must be either [Artist, ArtistConcat, Media, Profile, Shuffle, ShuffleArtist]"
+        assert isinstance(inputType, str), "InputType [{inputType}] must be a string"
+        allowedTypes = ["Artist", "ArtistOR", "Media", "Profile", "Shuffle", "ShuffleArtist"]
+        assert inputType in allowedTypes, "InputType [{inputType}] must be in {allowedTypes}"
         self.inputType = inputType
         self.mergeClassName = f"Merge{self.inputType}DataIO"
         
@@ -23,7 +24,8 @@ class MergeFileType:
         self.outputName = outputName
         
         assert isinstance(outputFormat, str) or outputFormat is None, "Output format must be a string or None"
-        assert outputFormat in [None, "DataFrame", "Series"], "OutputFormat must be either [None, DataFrame, Series]"
+        allowedFormats = [None, "DataFrame", "Series"]
+        assert outputFormat in allowedFormats, "OutputFormat [{outputFormat}] must be in {allowedFormats}"
         self.outputFormat = outputFormat
         
     def getOutput(self):
@@ -40,3 +42,4 @@ class MergeFileType:
                           
     def get(self):
         return self.__dict__
+    

@@ -35,6 +35,11 @@ class ParseDataIOBase:
     # Parse Runner
     ###########################################################################
     def parse(self, modVal=None, key=None, **kwargs) -> 'list':
+        if isinstance(modVal, str) and key is None:
+            key = modVal
+            modVal = None
+        if isinstance(key, str):
+            assert key in self.procs.keys(), f"Invalid key [{key}]: {self.procs.keys()}"
         if key in self.procs.keys():
             self.procs[key].parse(modVal=modVal, **kwargs)
         else:

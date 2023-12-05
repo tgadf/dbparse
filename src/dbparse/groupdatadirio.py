@@ -4,7 +4,7 @@ __all__ = ["RawDataDirIO", "ShuffleDataDirIO", "ShuffleArtistDataDirIO"]
 
 from dbbase import MusicDBRootDataIO
 from dbbase import FileSelector, MusicDBIDModVal, getModVals
-from utils import FileInfo
+from utils import FileInfo, DirInfo
 
 
 class DataDirIOBase:
@@ -16,6 +16,10 @@ class DataDirIOBase:
         assert isinstance(rdio, MusicDBRootDataIO), f"rdio [{rdio}] is not a MusicDBRootDataIO"
         self.rdio = rdio
         self.fs = FileSelector(rdio, **kwargs)
+        
+    def getFileTypeDir(self, fileTypeKey: str, modVal: int) -> 'DirInfo':
+        datadir = self.rdio.getDir(fileTypeKey, modVal)
+        return datadir
                 
     def getDirFiles(self, modVal: int, fileTypeKey, **kwargs) -> 'list':
         assert isinstance(modVal, int), f"modVal [{int}] is not an int"
@@ -31,7 +35,7 @@ class DataDirIOBase:
         if verbose:
             print(f"{self.__repr__()}: (modVal={modVal}, fileTypeKey={fileTypeKey}, force={force}, expr='{expr}')")
         
-        datadir = self.rdio.getDir(fileTypeKey, modVal)
+        datadir = self.getFileTypeDir(fileTypeKey, modVal)
         allFiles = datadir.getFiles()
         newFiles = self.fs.select(allFiles, tsFile, expr, force, verbose=verbose)
         
@@ -56,7 +60,7 @@ class DataDirIOBase:
         
         allFiles = []
         for globVal in getModVals():
-            datadir = self.rdio.getDir(fileTypeKey, globVal)
+            datadir = self.getFileTypeDir(fileTypeKey, globVal)
             finfo = datadir.join(f"{modVal}-{fileTypeKey}-DB.p")
             if finfo.exists():
                 allFiles.append(finfo.path)
@@ -118,11 +122,17 @@ class RawDataDirIO(DataDirIOBase):
         fileTypeKey = self.getFileTypeKey(fileType)
         mv = MusicDBIDModVal()
         modVal = mv.getModVal(dbid)
-        modGlobVal = mv.getModGlobVal(modVal)
-        globVal = mv.getModGlobVal(mv.getGlobVal(dbid))
-        
-        datadir = self.rdio.getDir(fileTypeKey, modVal)
-        files = datadir.glob(f"{self.rdio.db}-*-mv-{modGlobVal}-gv-{globVal}.p', debug={self.verbose}, lazy=False)")
-        retval = FileInfo(files[0]) if len(files) == 1 else None
+        globVal = mv.getGlobVal(dbid)
+
+        dinfo = self.getFileTypeDir(fileTypeKey, modVal)
+        fname = self.getFilename(fileType, modVal, globVal)
+        retval = dinfo.join(fname)
         return retval
+
+    def getFilename(self, fileType: str, modVal, globVal, **kwargs) -> 'str':
+        mv = MusicDBIDModVal()
+        fModVal = mv.getModGlobVal(modVal)
+        fGlobVal = mv.getModGlobVal(globVal)
+        finfo = f"{self.rdio.db}-{fileType}-mv-{fModVal}-gv-{fGlobVal}.p"
+        return finfo
         

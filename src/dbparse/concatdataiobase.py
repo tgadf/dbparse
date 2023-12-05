@@ -41,6 +41,8 @@ class ConcatDataIOBase:
     # Concat Runner
     ###########################################################################
     def concat(self, modVal=None, key=None, **kwargs):
+        if isinstance(key, str):
+            assert key in self.procs.keys(), f"Invalid key [{key}]: {self.procs.keys()}"
         if key in self.procs.keys():
             self.procs[key].concat(modVal=modVal, **kwargs)
         else:
@@ -51,7 +53,6 @@ class ConcatDataIOBase:
     # Helper Base Functions
     ###########################################################################
     def getShuffleFiles(self, modVal, concatType, verbose=False, **kwargs) -> 'list':
-        # tsFile = self.dataio.mvdataio.getFile(modVal)
         newFiles = self.sddio.getNewFiles(modVal=modVal, fileType=concatType.inputName,
                                           tsFile=None, force=True, verbose=verbose)
         return newFiles

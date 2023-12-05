@@ -27,8 +27,6 @@ class MusicDBGroupDataIO:
         assert isinstance(self.parseMap, dict), f"ParseMap for db={self.db} is not a dict [{type(self.parseMap)}]"
         self.mergeMap = params.mergeMap
         assert isinstance(self.mergeMap, dict), f"MergeMap for db={self.db} is not a dict [{type(self.mergeMap)}]"
-        self.groupMap = params.groupMap
-        assert isinstance(self.groupMap, dict), f"GroupMap for db={self.db} is not a dict [{type(self.groupMap)}]"
         self.concatMap = params.concatMap
         assert isinstance(self.concatMap, dict), f"ConcatMap for db={self.db} is not a dict [{type(self.concatMap)}]"
         
@@ -38,17 +36,17 @@ class MusicDBGroupDataIO:
     #######################################################################
     # Add GroupData To RootData
     #######################################################################
-    def addGroupData(self):
+    def addGroupData(self) -> 'None':
         self.addParseInputData()
         self.addParseOutputData()
-        self.addMergeInputData()
-        self.addMergeOutputData()
         self.addConcatOutputData()
+        self.addMergeOutputData()
+        self.addMergeInputData()  # must run the output before the input...
 
     #######################################################################
     # Raw ParseType Inputs
     #######################################################################
-    def addParseInputData(self):
+    def addParseInputData(self) -> 'None':
         for parseTypeKey, parseType in self.parseMap.items():
             assert isinstance(parseType, ParseFileType), f"parseType [{parseType}] is not a ParseFileType"
                 
@@ -68,19 +66,21 @@ class MusicDBGroupDataIO:
                         self.rdio.getDBDir(key).mkDir(modVal)
                     
                 key = f"Raw{inputName}"
-                datadir = self.rdio.getDBDir(f"Raw{inputName}ModVal")
-                dbdata = MusicDBData(path=datadir, arg=True)
-                self.rdio.addData(key, dbdata, addname=True)
+                if not self.rdio.isData(key):
+                    datadir = self.rdio.getDBDir(f"Raw{inputName}ModVal")
+                    dbdata = MusicDBData(path=datadir, arg=True)
+                    self.rdio.addData(key, dbdata, addname=True)
                 
                 key = f"Raw{inputName}ModVal"
-                datadir = self.rdio.getDBDir(f"Raw{inputName}ModVal")
-                dbdata = MusicDBData(path=datadir, arg=True)
-                self.rdio.addData(key, dbdata, addname=True)
+                if not self.rdio.isData(key):
+                    datadir = self.rdio.getDBDir(f"Raw{inputName}ModVal")
+                    dbdata = MusicDBData(path=datadir, arg=True)
+                    self.rdio.addData(key, dbdata, addname=True)
 
     #######################################################################
     # Shuffle/ModVal ParseType Outputs
     #######################################################################
-    def addParseOutputData(self):
+    def addParseOutputData(self) -> 'None':
         for parseTypeKey, parseType in self.parseMap.items():
             assert isinstance(parseType, ParseFileType), f"parseType [{parseType}] is not a ParseFileType"
             
@@ -121,68 +121,11 @@ class MusicDBGroupDataIO:
                 datadir = self.rdio.getDBDir(f"{outputName}")
                 dbdata = MusicDBData(path=datadir, arg=True, suffix=f"{outputName}-DB")
                 self.rdio.addData(key, dbdata, addname=True)
-
-    #######################################################################
-    # Shuffle/ModVal Merge Output
-    #######################################################################
-    def addMergeOutputData(self):
-        for mergeTypeKey, mergeType in self.mergeMap.items():
-            if not isinstance(mergeType, MergeFileType):
-                continue
-            
-            mergeOutput = mergeType.getOutput()
-            assert isinstance(mergeOutput, dict), f"mergeOutput [{mergeOutput}] is not a dict"
-            for mergeOutputName, (mergeOutputLevel, mergeOutputFormat) in mergeOutput.items():
-                if mergeOutputLevel == 0:
-                    continue
-                assert isinstance(mergeOutputName, str), f"MergeOutputName [{mergeOutputName}] is not a string"
-                
-                key = f"ModVal{mergeOutputName}"
-                dbdir = self.rdio.getDBDir("ModVal")
-                datadir = MusicDBDir(path=dbdir, child=f"{mergeOutputName.lower()}")
-                self.rdio.addDir(key, datadir)
-                if self.mkDirs is True:
-                    self.rdio.getDBDir(key).mkDir()
-                
-                key = f"ModVal{mergeOutputName}"
-                datadir = self.rdio.getDBDir(f"ModVal{mergeOutputName}")
-                dbdata = MusicDBData(path=datadir, arg=True, suffix="DB")
-                self.rdio.addData(key, dbdata, addname=True)
-
-    #######################################################################
-    # Shuffle/ModVal Merge Inputs (assert existance because it should be created in previous step)
-    #######################################################################
-    def addMergeInputData(self):
-        mergeChecks = []
-        for mergeTypeKey, mergeType in self.mergeMap.items():
-            assert isinstance(mergeType, (MergeFileType, dict)), f"mergeType [{mergeType}] is not a (MergeFileType, dict)"
-            
-            if isinstance(mergeType, MergeFileType):
-                inputNames = mergeType.inputName if isinstance(mergeType.inputName, list) else [mergeType.inputName]
-                mergeChecks.append([mergeTypeKey, mergeType.inputType, inputNames])
-            elif isinstance(mergeType, dict):
-                for mergeSubTypeKey, mergeSubType in mergeType.items():
-                    if isinstance(mergeSubType, MergeFileType):
-                        inputNames = mergeSubType.inputName if isinstance(mergeSubType.inputName, list) else [mergeSubType.inputName]
-                        mergeChecks.append([mergeSubTypeKey, mergeSubType.inputType, inputNames])
-                    elif isinstance(mergeSubType, list):
-                        for mergeSubSubType in mergeSubType:
-                            if isinstance(mergeSubSubType, MergeFileType):
-                                inputNames = mergeSubSubType.inputName if isinstance(mergeSubSubType.inputName, list) else [mergeSubSubType.inputName]
-                                mergeChecks.append([mergeSubTypeKey, mergeSubSubType.inputType, inputNames])
-                            else:
-                                raise TypeError(f"MergeSubTypeKey [{mergeSubTypeKey}] list entry is not a MergeFileType [{type(mergeSubSubType)}] object")
-    
-        for (mergeTypeKey, inputType, inputNames) in mergeChecks:
-            for inputName in inputNames:
-                dbKey = f"ModVal{inputName}" if inputType in ["Artist", "ArtistConcat", "Media", "Profile"] else f"{inputName}"
-                dbdir = self.rdio.getDBDir(dbKey)
-                assert isinstance(dbdir, MusicDBDir), f"MergeTypeKey [{mergeTypeKey}] input [{dbKey}] is not previously defined in ParseMap"
                         
     #######################################################################
     # Shuffle/ModVal Concat Output
     #######################################################################
-    def addConcatOutputData(self):
+    def addConcatOutputData(self) -> 'None':
         for concatTypeKey, concatType in self.concatMap.items():
             if not isinstance(concatType, ConcatFileType):
                 continue
@@ -206,26 +149,68 @@ class MusicDBGroupDataIO:
                 dbdata = MusicDBData(path=datadir, arg=True, suffix="DB")
                 self.rdio.addData(key, dbdata, addname=True)
 
-    def addOmit(self, omit):
-        return
-        self.addData("Omit", omit)
-        if self.verbose:
-            print("  Omit Data")
+    #######################################################################
+    # Shuffle/ModVal Merge Inputs (assert existance because it should be created in previous step)
+    #######################################################################
+    def addMergeInputData(self) -> 'None':
+        mergeChecks = []
+        for mergeTypeKey, mergeType in self.mergeMap.items():
+            assert isinstance(mergeType, (MergeFileType, dict)), f"mergeType [{mergeType}] is not a (MergeFileType, dict)"
             
-    def addSearchData(self, key, fname):
-        return
-        self.addDir("RawSearch", MusicDBDir(path=self.getDBDir("Raw"), child="search"))
-        if self.mkDirs is True:
-            self.getDBDir("RawSearch").mkDir()
-        self.addData(key, MusicDBData(path=self.getDBDir("RawSearch"), fname=fname))
-        if self.verbose:
-            print(f"  Search Directory [RawSearch] and Data [{key}]")
+            if isinstance(mergeType, MergeFileType):
+                inputNames = mergeType.inputName if isinstance(mergeType.inputName, list) else [mergeType.inputName]
+                mergeChecks.append([mergeTypeKey, mergeType.inputType, inputNames])
+            elif isinstance(mergeType, dict):
+                for mergeSubTypeKey, mergeSubType in mergeType.items():
+                    if isinstance(mergeSubType, MergeFileType):
+                        inputNames = mergeSubType.inputName if isinstance(mergeSubType.inputName, list) else [mergeSubType.inputName]
+                        mergeChecks.append([mergeSubTypeKey, mergeSubType.inputType, inputNames])
+                    elif isinstance(mergeSubType, list):
+                        for mergeSubSubType in mergeSubType:
+                            if isinstance(mergeSubSubType, MergeFileType):
+                                inputNames = mergeSubSubType.inputName if isinstance(mergeSubSubType.inputName, list) else [mergeSubSubType.inputName]
+                                mergeChecks.append([mergeSubTypeKey, mergeSubSubType.inputType, inputNames])
+                            else:
+                                raise TypeError(f"MergeSubTypeKey [{mergeSubTypeKey}] list entry is not a MergeFileType [{type(mergeSubSubType)}] object")
+    
+        for (mergeTypeKey, inputType, inputNames) in mergeChecks:
+            for inputName in inputNames:
+                dbKey = f"ModVal{inputName}" if inputType in ["Artist", "ArtistOR", "Media", "Profile"] else f"{inputName}"
+                dbdir = self.rdio.getDBDir(dbKey)
+                assert isinstance(dbdir, MusicDBDir), f"MergeTypeKey [{mergeTypeKey}] input [{dbKey}] is not previously defined in ParseMap"
+
+    #######################################################################
+    # Shuffle/ModVal Merge Output
+    #######################################################################
+    def addMergeOutputData(self) -> 'None':
+        for mergeTypeKey, mergeType in self.mergeMap.items():
+            assert isinstance(mergeType, MergeFileType), f"mergeType [{mergeType}] is not a MergeFileType"
             
-    def addSearchArgData(self, key, prefix):
-        return
-        self.addDir("RawSearch", MusicDBDir(path=self.getDBDir("Raw"), child="search"))
-        if self.mkDirs is True:
-            self.getDBDir("RawSearch").mkDir()
-        self.addData(key, MusicDBData(path=self.getDBDir("RawSearch"), arg=True, prefix=prefix), fname=True)
-        if self.verbose:
-            print(f"  Search Directory [RawSearch] and Data [{key}]")
+            mergeOutput = mergeType.getOutput()
+            assert isinstance(mergeOutput, dict), f"mergeOutput [{mergeOutput}] is not a dict"
+            for mergeOutputName, (mergeOutputLevel, mergeOutputFormat) in mergeOutput.items():
+                if mergeOutputLevel == 0:
+                    continue
+                assert isinstance(mergeOutputName, str), f"MergeOutputName [{mergeOutputName}] is not a string"
+                
+                key = f"ModVal{mergeOutputName}"
+                dbdir = self.rdio.getDBDir("ModVal")
+                datadir = MusicDBDir(path=dbdir, child=f"{mergeOutputName.lower()}")
+                self.rdio.addDir(key, datadir)
+                if self.mkDirs is True:
+                    self.rdio.getDBDir(key).mkDir()
+                
+                key = f"ModVal{mergeOutputName}"
+                datadir = self.rdio.getDBDir(f"ModVal{mergeOutputName}")
+                dbdata = MusicDBData(path=datadir, arg=True, suffix="DB")
+                self.rdio.addData(key, dbdata, addname=True)
+            
+    def addSearchData(self, key: str, fname: str) -> 'None':
+        datadir = self.rdio.getDBDir("RawSearch")
+        dbdata = MusicDBData(path=datadir, fname=fname)
+        self.rdio.addData(key, dbdata, addname=True)
+            
+    def addSearchArgData(self, key: str, prefix: str) -> 'None':
+        datadir = self.rdio.getDBDir("RawSearch")
+        dbdata = MusicDBData(path=datadir, arg=True, prefix=prefix)
+        self.rdio.addData(key, dbdata, addname=True)

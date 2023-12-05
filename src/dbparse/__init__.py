@@ -17,6 +17,7 @@ from .mergefiletype import *
 from .mergedataiobase import *
 from .mergemodvaldataio import *
 from .mergeartistdataio import *
+from .mergeartistordataio import *
 from .mergeshuffledataio import *
 
 # MusicDB IO
@@ -25,3 +26,6 @@ from .dbgroupdataio import *
 # IO
 from .groupdatadirio import *
 from .modvaldataoutput import *
+
+# MediaID
+from .mediautilsbase import *
